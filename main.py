@@ -19,7 +19,8 @@ from pydantic import BaseModel
 
 from video_processor import VideoProcessor
 from vector_store import VectorStore
-from models import VideoMetadata, SceneData, SearchResult, SearchRequest
+from openai_analyzer import OpenAITimelineAnalyzer
+from models import VideoMetadata, SceneData, SearchResult, SearchRequest, VideoTimeline
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -31,6 +32,7 @@ app = FastAPI(
 # Initialize components
 video_processor = VideoProcessor()
 vector_store = VectorStore()
+openai_analyzer = OpenAITimelineAnalyzer()
 
 # Request/Response Models
 class UploadResponse(BaseModel):
@@ -43,6 +45,7 @@ class SearchResponse(BaseModel):
     query: str
     results: List[SearchResult]
     total_results: int
+    video_timelines: List[VideoTimeline] = []  # Grouped by video with relevant timestamps
 
 
 @app.on_event("startup")
@@ -159,20 +162,31 @@ async def search_videos(request: SearchRequest):
     """
     Search through uploaded videos using semantic search.
     
-    Returns relevant video segments with start and end timestamps.
+    Returns relevant video segments with start and end timestamps,
+    plus OpenAI-analyzed video timelines showing overall relevant timeframes.
     """
     try:
         # Perform semantic search
         results = await vector_store.search_scenes(
             query=request.query,
             limit=request.limit,
-            min_score=request.min_score
+            min_score=request.min_score,
+            video_ids=request.video_ids
         )
+        
+        # Use OpenAI to analyze and determine relevant timelines for each video
+        video_timelines = []
+        if results:
+            video_timelines = await openai_analyzer.analyze_search_results(
+                query=request.query,
+                search_results=results
+            )
         
         return SearchResponse(
             query=request.query,
             results=results,
-            total_results=len(results)
+            total_results=len(results),
+            video_timelines=video_timelines
         )
         
     except Exception as e:

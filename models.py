@@ -62,6 +62,18 @@ class SearchResult(BaseModel):
     scene_image_path: Optional[str] = None
 
 
+class VideoTimeline(BaseModel):
+    """Timeline information for relevant scenes in a video"""
+    video_id: str
+    video_title: str
+    overall_start_time: float  # Overall start timestamp for relevant content
+    overall_end_time: float    # Overall end timestamp for relevant content
+    overall_start_time_formatted: str  # HH:MM:SS format
+    overall_end_time_formatted: str    # HH:MM:SS format
+    relevant_scenes: List[SearchResult]
+    relevance_reasoning: str  # OpenAI's explanation of why these scenes are relevant
+
+
 class ProcessingStatus(BaseModel):
     """Processing status for a video"""
     video_id: str

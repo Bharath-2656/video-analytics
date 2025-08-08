@@ -11,6 +11,7 @@ A FastAPI-based application for uploading videos, processing them with AI, and p
   - Visual context extraction using GPT-4o Vision
   - Semantic embeddings using Sentence Transformers
 - **Semantic Search**: Search across video content using natural language queries
+- **AI Timeline Analysis**: OpenAI-powered analysis to determine overall relevant timestamps for query-specific content
 - **Vector Storage**: Store and search embeddings using OpenSearch (with in-memory fallback)
 - **Timestamped Results**: Get precise start/end timestamps for relevant video segments
 
@@ -72,7 +73,12 @@ Upload a video file for processing. The video will be processed in the backgroun
 ```http
 POST /search
 ```
-Search across video content using semantic search.
+Search across video content using semantic search. The response includes both individual scene results and AI-analyzed video timelines that show the overall relevant timeframes for your query.
+
+**Key Features**:
+- **Individual Scene Results**: Specific scenes that match your query with their timestamps
+- **Video Timelines**: OpenAI analyzes scenes to determine overall start/end timestamps for relevant content in each video
+- **AI Reasoning**: Explanations for why specific timestamps were chosen
 
 **Request**:
 ```json
@@ -104,7 +110,19 @@ Search across video content using semantic search.
       "scene_image_path": "scene_images/uuid/Scene-001.jpg"
     }
   ],
-  "total_results": 1
+  "total_results": 1,
+  "video_timelines": [
+    {
+      "video_id": "uuid",
+      "video_title": "Video Title",
+      "overall_start_time": 42.0,
+      "overall_end_time": 125.5,
+      "overall_start_time_formatted": "0:00:42",
+      "overall_end_time_formatted": "0:02:05",
+      "relevant_scenes": [...],
+      "relevance_reasoning": "OpenAI determined these timestamps capture the complete architecture explanation including setup and examples."
+    }
+  ]
 }
 ```
 
