@@ -14,13 +14,15 @@ from typing import List, Optional
 from datetime import datetime
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from video_processor import VideoProcessor
 from vector_store import VectorStore
 from openai_analyzer import OpenAITimelineAnalyzer
-from models import VideoMetadata, SceneData, SearchResult, SearchRequest, VideoTimeline
+from video_trimmer import VideoTrimmer
+from models import VideoMetadata, SceneData, SearchResult, SearchRequest, VideoTimeline, TrimmedVideoInfo
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -33,6 +35,21 @@ app = FastAPI(
 video_processor = VideoProcessor()
 vector_store = VectorStore()
 openai_analyzer = OpenAITimelineAnalyzer()
+video_trimmer = VideoTrimmer()
+
+# Helper function to get video file path
+async def get_video_file_path(video_id: str) -> Optional[str]:
+    """Get the original video file path for a given video_id"""
+    try:
+        metadata = await vector_store.get_video_metadata(video_id)
+        if metadata and metadata.file_path and os.path.exists(metadata.file_path):
+            return metadata.file_path
+        return None
+    except Exception:
+        return None
+
+# Mount static files for serving trimmed videos
+app.mount("/trimmed_videos", StaticFiles(directory="trimmed_videos"), name="trimmed_videos")
 
 # Request/Response Models
 class UploadResponse(BaseModel):
@@ -162,8 +179,8 @@ async def search_videos(request: SearchRequest):
     """
     Search through uploaded videos using semantic search.
     
-    Returns relevant video segments with start and end timestamps,
-    plus OpenAI-analyzed video timelines showing overall relevant timeframes.
+    Returns relevant video segments with automatically generated trimmed videos
+    based on OpenAI-analyzed timelines.
     """
     try:
         # Perform semantic search
@@ -181,6 +198,25 @@ async def search_videos(request: SearchRequest):
                 query=request.query,
                 search_results=results
             )
+            
+            # Generate trimmed videos for each timeline
+            for timeline in video_timelines:
+                try:
+                    # Get original video path
+                    original_path = await get_video_file_path(timeline.video_id)
+                    if original_path:
+                        # Trim the video
+                        trimmed_path = await video_trimmer.trim_video_from_timeline(
+                            timeline, original_path
+                        )
+                        
+                        # Set the paths in the timeline
+                        timeline.trimmed_video_path = trimmed_path
+                        timeline.trimmed_video_url = f"/trimmed_videos/{os.path.basename(trimmed_path)}"
+                        
+                except Exception as e:
+                    print(f"Warning: Failed to trim video {timeline.video_id}: {str(e)}")
+                    # Continue without trimmed video
         
         return SearchResponse(
             query=request.query,
@@ -238,6 +274,87 @@ async def list_videos():
         raise HTTPException(
             status_code=500,
             detail=f"Failed to list videos: {str(e)}"
+        )
+
+
+@app.get("/download_trimmed/{filename}")
+async def download_trimmed_video(filename: str):
+    """Download a trimmed video file"""
+    try:
+        file_path = os.path.join("trimmed_videos", filename)
+        
+        if not os.path.exists(file_path):
+            raise HTTPException(
+                status_code=404,
+                detail="Trimmed video not found"
+            )
+        
+        return FileResponse(
+            path=file_path,
+            filename=filename,
+            media_type='video/mp4'
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to download video: {str(e)}"
+        )
+
+
+@app.post("/trim_video")
+async def trim_video_endpoint(
+    video_id: str,
+    start_time: float,
+    end_time: float
+):
+    """
+    Manually trim a video by providing video_id and timestamps
+    """
+    try:
+        # Get original video path
+        original_path = await get_video_file_path(video_id)
+        if not original_path:
+            raise HTTPException(
+                status_code=404,
+                detail="Video not found or file not accessible"
+            )
+        
+        # Get video metadata
+        metadata = await vector_store.get_video_metadata(video_id)
+        if not metadata:
+            raise HTTPException(
+                status_code=404,
+                detail="Video metadata not found"
+            )
+        
+        # Trim the video
+        trimmed_path = await video_trimmer.trim_video(
+            input_path=original_path,
+            start_time=start_time,
+            end_time=end_time
+        )
+        
+        # Get file info
+        video_info = video_trimmer.get_trimmed_video_info(trimmed_path)
+        
+        return TrimmedVideoInfo(
+            video_id=video_id,
+            video_title=metadata.title,
+            trimmed_filename=video_info['filename'],
+            trimmed_path=trimmed_path,
+            trimmed_url=f"/trimmed_videos/{video_info['filename']}",
+            original_start_time=start_time,
+            original_end_time=end_time,
+            duration_seconds=end_time - start_time,
+            file_size_mb=video_info['size_mb'],
+            reasoning=f"Manual trim from {start_time}s to {end_time}s"
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to trim video: {str(e)}"
         )
 
 

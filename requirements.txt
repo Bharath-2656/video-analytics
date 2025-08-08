@@ -89,3 +89,9 @@ urllib3==2.5.0
 uvicorn==0.34.0
 yarl==1.20.1
 zstandard==0.23.0
+
+# Note: ffmpeg is required for video trimming functionality
+# Install ffmpeg separately:
+# - macOS: brew install ffmpeg
+# - Ubuntu/Debian: sudo apt install ffmpeg
+# - Windows: Download from https://ffmpeg.org/download.html

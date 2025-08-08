@@ -72,6 +72,22 @@ class VideoTimeline(BaseModel):
     overall_end_time_formatted: str    # HH:MM:SS format
     relevant_scenes: List[SearchResult]
     relevance_reasoning: str  # OpenAI's explanation of why these scenes are relevant
+    trimmed_video_path: Optional[str] = None  # Path to the trimmed video file
+    trimmed_video_url: Optional[str] = None   # URL to download the trimmed video
+
+
+class TrimmedVideoInfo(BaseModel):
+    """Information about a trimmed video"""
+    video_id: str
+    video_title: str
+    trimmed_filename: str
+    trimmed_path: str
+    trimmed_url: str
+    original_start_time: float
+    original_end_time: float
+    duration_seconds: float
+    file_size_mb: float
+    reasoning: str
 
 
 class ProcessingStatus(BaseModel):

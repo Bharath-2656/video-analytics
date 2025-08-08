@@ -12,8 +12,9 @@ A FastAPI-based application for uploading videos, processing them with AI, and p
   - Semantic embeddings using Sentence Transformers
 - **Semantic Search**: Search across video content using natural language queries
 - **AI Timeline Analysis**: OpenAI-powered analysis to determine overall relevant timestamps for query-specific content
+- **Automatic Video Trimming**: Generates trimmed video files based on AI-analyzed relevant segments
 - **Vector Storage**: Store and search embeddings using OpenSearch (with in-memory fallback)
-- **Timestamped Results**: Get precise start/end timestamps for relevant video segments
+- **Downloadable Results**: Get trimmed video files ready for download, not just timestamps
 
 ## Setup
 
@@ -22,6 +23,11 @@ A FastAPI-based application for uploading videos, processing them with AI, and p
 ```bash
 pip install -r requirements.txt
 ```
+
+**Important**: ffmpeg is required for video trimming functionality:
+- **macOS**: `brew install ffmpeg`
+- **Ubuntu/Debian**: `sudo apt install ffmpeg`  
+- **Windows**: Download from [https://ffmpeg.org/download.html](https://ffmpeg.org/download.html)
 
 ### 2. Environment Configuration
 
@@ -73,11 +79,13 @@ Upload a video file for processing. The video will be processed in the backgroun
 ```http
 POST /search
 ```
-Search across video content using semantic search. The response includes both individual scene results and AI-analyzed video timelines that show the overall relevant timeframes for your query.
+Search across video content using semantic search. The response includes both individual scene results and automatically generated trimmed video files based on AI-analyzed timelines.
 
 **Key Features**:
 - **Individual Scene Results**: Specific scenes that match your query with their timestamps
-- **Video Timelines**: OpenAI analyzes scenes to determine overall start/end timestamps for relevant content in each video
+- **AI Timeline Analysis**: OpenAI analyzes scenes to determine overall start/end timestamps for relevant content in each video
+- **Automatic Video Trimming**: Generates trimmed video files for each relevant timeline
+- **Downloadable Videos**: Direct URLs to download the trimmed video segments
 - **AI Reasoning**: Explanations for why specific timestamps were chosen
 
 **Request**:
@@ -120,9 +128,39 @@ Search across video content using semantic search. The response includes both in
       "overall_start_time_formatted": "0:00:42",
       "overall_end_time_formatted": "0:02:05",
       "relevant_scenes": [...],
-      "relevance_reasoning": "OpenAI determined these timestamps capture the complete architecture explanation including setup and examples."
+      "relevance_reasoning": "OpenAI determined these timestamps capture the complete architecture explanation including setup and examples.",
+      "trimmed_video_path": "/path/to/trimmed_video.mp4",
+      "trimmed_video_url": "/trimmed_videos/Video_Title_000042-000205_83.5s.mp4"
     }
   ]
+}
+```
+
+### Download Trimmed Video
+```http
+GET /trimmed_videos/{filename}
+```
+Download a trimmed video file. The filename is returned in the search response.
+
+### Manual Video Trimming
+```http
+POST /trim_video?video_id={id}&start_time={seconds}&end_time={seconds}
+```
+Manually trim a video by providing specific timestamps.
+
+**Response**:
+```json
+{
+  "video_id": "uuid",
+  "video_title": "Video Title",
+  "trimmed_filename": "trimmed_video.mp4",
+  "trimmed_path": "/path/to/file",
+  "trimmed_url": "/trimmed_videos/trimmed_video.mp4",
+  "original_start_time": 30.0,
+  "original_end_time": 90.0,
+  "duration_seconds": 60.0,
+  "file_size_mb": 15.2,
+  "reasoning": "Manual trim from 30s to 90s"
 }
 ```
 
