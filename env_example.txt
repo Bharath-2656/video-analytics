@@ -1,0 +1,14 @@
+# OpenAI API Key for GPT-4o vision model
+OPENAI_API_KEY=your_openai_api_key_here
+
+# OpenSearch Configuration (optional - will use in-memory storage if not configured)
+OPENSEARCH_HOST=localhost
+OPENSEARCH_PORT=9200
+OPENSEARCH_USERNAME=admin
+OPENSEARCH_PASSWORD=admin
+OPENSEARCH_USE_SSL=false
+
+# Application Configuration
+MAX_FILE_SIZE=500MB
+UPLOAD_DIR=uploads
+SCENE_IMAGES_DIR=scene_images
