@@ -413,7 +413,7 @@ async def trim_video_endpoint(
         )
 
 
-@app.get("/health")
+@app.get("/")
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "timestamp": datetime.utcnow()}
