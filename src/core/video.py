@@ -98,7 +98,7 @@ for idx, (start, end) in enumerate(scene_list):
         "start_time": str(timedelta(seconds=int(start))),
         "end_time": str(timedelta(seconds=int(end))),
         "transcript": transcript_text.strip(),
-        "scene_image": f"scene_images/{image_filename}" if image_filename else "",
+        "scene_image": f"data/scene_images/{image_filename}" if image_filename else "",
     })
 
 # Initialize GPT-4o LLM

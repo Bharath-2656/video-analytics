@@ -6,7 +6,7 @@ import os
 import json
 from typing import List, Dict
 from openai import OpenAI
-from models import SearchResult, VideoTimeline
+from ..core.models import SearchResult, VideoTimeline
 
 
 class OpenAITimelineAnalyzer:

@@ -20,7 +20,7 @@ from langchain.chat_models import ChatOpenAI
 from langchain.schema import HumanMessage
 from dotenv import load_dotenv
 
-from models import SceneData
+from .models import SceneData
 
 # Load environment variables
 load_dotenv()
@@ -51,7 +51,7 @@ class VideoProcessor:
         """
         
         # Create output directory for scene images
-        output_dir = f"scene_images/{video_id}"
+        output_dir = f"data/scene_images/{video_id}"
         os.makedirs(output_dir, exist_ok=True)
         
         # Step 1: Transcribe audio

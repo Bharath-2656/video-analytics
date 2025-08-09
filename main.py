@@ -19,11 +19,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from video_processor import VideoProcessor
-from vector_store import VectorStore
-from openai_analyzer import OpenAITimelineAnalyzer
-from video_trimmer import VideoTrimmer
-from models import VideoMetadata, SceneData, SearchResult, SearchRequest, VideoTimeline, TrimmedVideoInfo, MergedVideoInfo
+from src.core.video_processor import VideoProcessor
+from src.core.vector_store import VectorStore
+from src.analyzers.openai_analyzer import OpenAITimelineAnalyzer
+from src.core.video_trimmer import VideoTrimmer
+from src.core.models import VideoMetadata, SceneData, SearchResult, SearchRequest, VideoTimeline, TrimmedVideoInfo, MergedVideoInfo
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -59,7 +59,7 @@ async def get_video_file_path(video_id: str) -> Optional[str]:
         return None
 
 # Mount static files for serving trimmed videos
-app.mount("/trimmed_videos", StaticFiles(directory="trimmed_videos"), name="trimmed_videos")
+app.mount("/data/trimmed_videos", StaticFiles(directory="data/trimmed_videos"), name="trimmed_videos")
 
 # Request/Response Models
 class UploadResponse(BaseModel):
@@ -114,7 +114,7 @@ async def upload_video(
     video_id = str(uuid.uuid4())
     
     # Create upload directory
-    upload_dir = f"uploads/{video_id}"
+    upload_dir = f"data/uploads/{video_id}"
     os.makedirs(upload_dir, exist_ok=True)
     
     # Save uploaded file
@@ -249,7 +249,7 @@ async def search_videos(request: SearchRequest):
                 )
                 
                 if merged_video_path and os.path.exists(merged_video_path):
-                    merged_video_url = f"/trimmed_videos/{os.path.basename(merged_video_path)}"
+                    merged_video_url = f"/data/trimmed_videos/{os.path.basename(merged_video_path)}"
                     print(f"Successfully created merged video: {merged_video_url}")
                 elif merged_video_path:
                     print(f"Error: Merged video path returned but file doesn't exist: {merged_video_path}")
@@ -398,7 +398,7 @@ async def trim_video_endpoint(
             video_title=metadata.title,
             trimmed_filename=video_info['filename'],
             trimmed_path=trimmed_path,
-            trimmed_url=f"/trimmed_videos/{video_info['filename']}",
+            trimmed_url=f"/data/trimmed_videos/{video_info['filename']}",
             original_start_time=start_time,
             original_end_time=end_time,
             duration_seconds=end_time - start_time,

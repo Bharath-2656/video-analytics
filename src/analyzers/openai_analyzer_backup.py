@@ -5,7 +5,7 @@ OpenAI-powered analysis for determining relevant video timelines
 import os
 from typing import List, Dict, Tuple
 from openai import OpenAI
-from models import SearchResult, VideoTimeline
+from ..core.models import SearchResult, VideoTimeline
 
 
 class OpenAITimelineAnalyzer:

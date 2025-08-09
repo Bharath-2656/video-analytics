@@ -11,13 +11,13 @@ import asyncio
 import tempfile
 import json
 
-from models import VideoTimeline, SearchResult
+from .models import VideoTimeline, SearchResult
 
 
 class VideoTrimmer:
     """Handles video trimming operations using ffmpeg"""
     
-    def __init__(self, output_dir: str = "trimmed_videos"):
+    def __init__(self, output_dir: str = "data/trimmed_videos"):
         self.output_dir = output_dir
         # Create output directory if it doesn't exist
         os.makedirs(output_dir, exist_ok=True)

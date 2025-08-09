@@ -12,7 +12,7 @@ from sentence_transformers import SentenceTransformer
 from sentence_transformers.util import semantic_search
 import torch
 
-from models import VideoMetadata, SceneData, SearchResult
+from .models import VideoMetadata, SceneData, SearchResult
 
 
 class VectorStore:

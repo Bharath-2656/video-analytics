@@ -12,8 +12,9 @@ load_dotenv()
 
 if __name__ == "__main__":
     # Create necessary directories
-    os.makedirs("uploads", exist_ok=True)
-    os.makedirs("scene_images", exist_ok=True)
+    os.makedirs("data/uploads", exist_ok=True)
+    os.makedirs("data/scene_images", exist_ok=True)
+    os.makedirs("data/trimmed_videos", exist_ok=True)
     
     # Start the server
     uvicorn.run(

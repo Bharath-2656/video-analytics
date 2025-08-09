@@ -9,8 +9,8 @@ __pycache__/
 *.pyzw
 *.pyzwz
 .env
-scene_images/
+data/scene_images/
+data/uploads/
+data/trimmed_videos/
 .DS_Store
 test.mp4
-uploads/
-trimmed_videos/
