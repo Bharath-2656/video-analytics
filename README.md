@@ -26,6 +26,18 @@ A FastAPI-based application for uploading videos, processing them with AI, and p
 pip install -r requirements.txt
 ```
 
+**Key Dependencies**:
+- **FastAPI**: Web framework for building the API
+- **OpenAI**: GPT-4o Vision for visual analysis and timeline analysis
+- **openai-whisper**: Audio transcription with word-level timestamps
+- **sentence-transformers**: Semantic embeddings for search
+- **opensearch-py**: Vector storage (with in-memory fallback)
+- **moviepy**: Video processing and manipulation
+- **opencv-python**: Computer vision for scene detection
+- **ImageHash**: Perceptual hashing for scene transitions
+- **langchain**: Integration with OpenAI models
+- **scenedetect**: Advanced scene boundary detection
+
 **Important**: ffmpeg is required for video trimming functionality:
 - **macOS**: `brew install ffmpeg`
 - **Ubuntu/Debian**: `sudo apt install ffmpeg`  
@@ -33,15 +45,28 @@ pip install -r requirements.txt
 
 ### 2. Environment Configuration
 
-Copy `.env.example` to `.env` and configure your settings:
+Copy `env_example.txt` to `.env` and configure your settings:
 
 ```bash
-cp .env.example .env
+cp env_example.txt .env
 ```
 
-Edit `.env` with your OpenAI API key:
+Edit `.env` with your configuration:
 ```env
+# OpenAI API Key for GPT-4o vision model
 OPENAI_API_KEY=your_openai_api_key_here
+
+# OpenSearch Configuration (optional - will use in-memory storage if not configured)
+OPENSEARCH_HOST=localhost
+OPENSEARCH_PORT=9200
+OPENSEARCH_USERNAME=admin
+OPENSEARCH_PASSWORD=admin
+OPENSEARCH_USE_SSL=false
+
+# Application Configuration
+MAX_FILE_SIZE=500MB
+UPLOAD_DIR=uploads
+SCENE_IMAGES_DIR=scene_images
 ```
 
 ### 3. Start the Server
@@ -236,14 +261,33 @@ OPENSEARCH_USE_SSL=true
 
 ```
 video_analytics/
-├── main.py              # FastAPI application
-├── models.py            # Pydantic data models
-├── video_processor.py   # Video processing logic
-├── vector_store.py      # Vector database operations
-├── start_server.py      # Server startup script
-├── requirements.txt     # Python dependencies
-├── .env.example         # Environment template
-└── README.md           # This file
+├── main.py                          # FastAPI application entry point
+├── start_server.py                  # Server startup script
+├── requirements.txt                 # Python dependencies
+├── env_example.txt                  # Environment template
+├── README.md                        # This file
+├── data/                            # Data storage directory
+│   ├── scene_images/                # Generated scene screenshots
+│   ├── trimmed_videos/              # Processed video segments
+│   └── uploads/                     # Uploaded video files
+├── src/                             # Source code modules
+│   ├── analyzers/                   # AI analysis components
+│   │   ├── openai_analyzer.py       # Timeline analysis with OpenAI
+│   │   ├── openai_analyzer_clean.py # Clean implementation
+│   │   ├── openai_analyzer_simple.py# Simplified analyzer
+│   │   └── openai_analyzer_backup.py# Backup implementation
+│   └── core/                        # Core processing modules
+│       ├── models.py                # Pydantic data models
+│       ├── video_processor.py       # Video processing logic
+│       ├── vector_store.py          # Vector database operations
+│       ├── video_trimmer.py         # Video trimming functionality
+│       └── video.py                 # Video utilities
+├── scripts/                         # Development and debugging scripts
+│   ├── debug_*.py                   # Various debugging utilities
+│   └── diagnose_error.py            # Error diagnosis tool
+└── tests/                           # Test suite
+    ├── test_*.py                    # Various test modules
+    └── __init__.py                  # Test package init
 ```
 
 ## Development
@@ -255,6 +299,38 @@ The application is designed for easy development and deployment:
 - Background processing for video uploads
 - Modular architecture for easy extension
 - In-memory fallback for development without external dependencies
+
+### Testing and Debugging
+
+The project includes comprehensive testing and debugging tools:
+
+**Test Suite** (`tests/` directory):
+- `test_api_timeline.py` - API timeline functionality tests
+- `test_architecture_query.py` - Architecture query processing tests
+- `test_scene_detection_fix.py` - Scene detection validation
+- `test_video_trimming.py` - Video trimming functionality tests
+- `test_timeline_search.py` - Timeline search accuracy tests
+- And many more specialized test modules
+
+**Debug Scripts** (`scripts/` directory):
+- `debug_scene_detection.py` - Scene detection troubleshooting
+- `debug_slide_detection.py` - Slide transition debugging
+- `debug_scene_boundaries.py` - Scene boundary validation
+- `diagnose_error.py` - General error diagnosis tool
+- `debug_current_boundaries.py` - Current boundary status check
+
+**Running Tests**:
+```bash
+# Run specific test
+python -m pytest tests/test_video_trimming.py -v
+
+# Run all tests
+python -m pytest tests/ -v
+
+# Run debug scripts
+python scripts/debug_scene_detection.py
+python scripts/diagnose_error.py
+```
 
 ## License
 
