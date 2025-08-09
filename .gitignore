@@ -9,3 +9,8 @@ __pycache__/
 *.pyzw
 *.pyzwz
 .env
+scene_images/
+.DS_Store
+test.mp4
+uploads/
+trimmed_videos/
