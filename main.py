@@ -22,7 +22,7 @@ from video_processor import VideoProcessor
 from vector_store import VectorStore
 from openai_analyzer import OpenAITimelineAnalyzer
 from video_trimmer import VideoTrimmer
-from models import VideoMetadata, SceneData, SearchResult, SearchRequest, VideoTimeline, TrimmedVideoInfo
+from models import VideoMetadata, SceneData, SearchResult, SearchRequest, VideoTimeline, TrimmedVideoInfo, MergedVideoInfo
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -60,9 +60,7 @@ class UploadResponse(BaseModel):
 
 class SearchResponse(BaseModel):
     query: str
-    results: List[SearchResult]
-    total_results: int
-    video_timelines: List[VideoTimeline] = []  # Grouped by video with relevant timestamps
+    merged_video_url: Optional[str] = None  # Direct URL to download the merged video
 
 
 @app.on_event("startup")
@@ -179,8 +177,8 @@ async def search_videos(request: SearchRequest):
     """
     Search through uploaded videos using semantic search.
     
-    Returns relevant video segments with automatically generated trimmed videos
-    based on OpenAI-analyzed timelines.
+    Returns a single merged video URL containing all relevant segments stitched together
+    based on OpenAI-analyzed content.
     """
     try:
         # Perform semantic search
@@ -191,41 +189,88 @@ async def search_videos(request: SearchRequest):
             video_ids=request.video_ids
         )
         
-        # Use OpenAI to analyze and determine relevant timelines for each video
-        video_timelines = []
+        merged_video_url = None
+        
         if results:
-            video_timelines = await openai_analyzer.analyze_search_results(
+            # Apply strict relevance filtering to keep only truly relevant scenes
+            print(f"Initial search found {len(results)} scenes")
+            
+            # Debug: log scene numbers found
+            scene_numbers = [r.scene_number for r in results]
+            print(f"Scene numbers found: {sorted(scene_numbers)}")
+            
+
+            
+            filtered_results = await openai_analyzer.filter_truly_relevant_scenes(
                 query=request.query,
                 search_results=results
             )
             
-            # Generate trimmed videos for each timeline
-            for timeline in video_timelines:
-                try:
-                    # Get original video path
-                    original_path = await get_video_file_path(timeline.video_id)
-                    if original_path:
-                        # Trim the video
-                        trimmed_path = await video_trimmer.trim_video_from_timeline(
-                            timeline, original_path
-                        )
-                        
-                        # Set the paths in the timeline
-                        timeline.trimmed_video_path = trimmed_path
-                        timeline.trimmed_video_url = f"/trimmed_videos/{os.path.basename(trimmed_path)}"
-                        
-                except Exception as e:
-                    print(f"Warning: Failed to trim video {timeline.video_id}: {str(e)}")
-                    # Continue without trimmed video
+            if not filtered_results:
+                print("No truly relevant scenes found after filtering")
+                return SearchResponse(
+                    query=request.query,
+                    merged_video_url=None
+                )
+            
+            # Simple fallback: if AI filtering resulted in no results, return top 2 search results
+            if not filtered_results and results:
+                print("⚠️  AI filtering resulted in no scenes - using top 2 search results as fallback")
+                filtered_results = results[:2]
+            
+            print(f"After relevance filtering: {len(filtered_results)} truly relevant scenes")
+            
+            # Use OpenAI to analyze and determine relevant timelines for each video
+            video_timelines = await openai_analyzer.analyze_search_results(
+                query=request.query,
+                search_results=filtered_results
+            )
+            
+            # Create a single merged video with all relevant segments
+            try:
+                print(f"Creating merged video for query: '{request.query}' with {len(filtered_results)} filtered segments...")
+                
+                merged_video_path = await video_trimmer.create_merged_video_from_search_results(
+                    query=request.query,
+                    search_results=filtered_results,
+                    get_video_path_func=get_video_file_path,
+                    include_titles=True,
+                    add_transitions=True
+                )
+                
+                if merged_video_path and os.path.exists(merged_video_path):
+                    merged_video_url = f"/trimmed_videos/{os.path.basename(merged_video_path)}"
+                    print(f"Successfully created merged video: {merged_video_url}")
+                elif merged_video_path:
+                    print(f"Error: Merged video path returned but file doesn't exist: {merged_video_path}")
+                    merged_video_url = None
+                else:
+                    print("Error: Merged video path is None")
+                    merged_video_url = None
+                
+            except Exception as e:
+                print(f"Error: Failed to create merged video: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                merged_video_url = None  # Ensure it's set to None on error
+        else:
+            print("No search results found for query")
+        
+        # Ensure safe string encoding for response
+        safe_query = request.query.encode('utf-8', errors='replace').decode('utf-8')
+        safe_merged_video_url = merged_video_url
+        if merged_video_url:
+            safe_merged_video_url = merged_video_url.encode('utf-8', errors='replace').decode('utf-8')
         
         return SearchResponse(
-            query=request.query,
-            results=results,
-            total_results=len(results),
-            video_timelines=video_timelines
+            query=safe_query,
+            merged_video_url=safe_merged_video_url
         )
         
     except Exception as e:
+        print(f"Search error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=500,
             detail=f"Search failed: {str(e)}"
@@ -362,6 +407,36 @@ async def trim_video_endpoint(
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy", "timestamp": datetime.utcnow()}
+
+
+@app.post("/reprocess_video/{video_id}")
+async def reprocess_video_with_new_algorithm(video_id: str):
+    """Reprocess a video with the improved slide detection algorithm"""
+    try:
+        # Get video metadata
+        metadata = await vector_store.get_video_metadata(video_id)
+        if not metadata:
+            raise HTTPException(status_code=404, detail="Video not found")
+        
+        # Get video file path
+        video_path = await get_video_file_path(video_id)
+        if not video_path or not os.path.exists(video_path):
+            raise HTTPException(status_code=404, detail="Video file not found")
+        
+        print(f"🔄 Reprocessing video {video_id} with improved slide detection...")
+        
+        # Process with new algorithm
+        await process_video_background(video_id, video_path, metadata)
+        
+        return {
+            "status": "success",
+            "message": f"Video {video_id} reprocessed with improved slide detection",
+            "video_id": video_id
+        }
+        
+    except Exception as e:
+        print(f"Error reprocessing video {video_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Reprocessing failed: {str(e)}")
 
 
 if __name__ == "__main__":

@@ -90,6 +90,20 @@ class TrimmedVideoInfo(BaseModel):
     reasoning: str
 
 
+class MergedVideoInfo(BaseModel):
+    """Information about a merged video containing all relevant segments"""
+    query: str
+    merged_filename: str
+    merged_path: str
+    merged_url: str
+    total_duration_seconds: float
+    file_size_mb: float
+    segments_count: int
+    source_videos: List[str]  # List of source video titles
+    creation_timestamp: str
+    reasoning: str  # AI explanation of what was included and why
+
+
 class ProcessingStatus(BaseModel):
     """Processing status for a video"""
     video_id: str

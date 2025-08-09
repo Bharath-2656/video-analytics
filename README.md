@@ -12,9 +12,11 @@ A FastAPI-based application for uploading videos, processing them with AI, and p
   - Semantic embeddings using Sentence Transformers
 - **Semantic Search**: Search across video content using natural language queries
 - **AI Timeline Analysis**: OpenAI-powered analysis to determine overall relevant timestamps for query-specific content
-- **Automatic Video Trimming**: Generates trimmed video files based on AI-analyzed relevant segments
+- **Relevance Filtering**: Strict AI filtering to keep only scenes with truly relevant visual or contextual content
+- **Video Stitching & Merging**: Automatically combines all relevant segments into a single merged video
+- **Smart Content Assembly**: Intelligent ordering and title cards between segments from different videos
 - **Vector Storage**: Store and search embeddings using OpenSearch (with in-memory fallback)
-- **Downloadable Results**: Get trimmed video files ready for download, not just timestamps
+- **Single Video Response**: Get one merged video containing all relevant content, not multiple clips
 
 ## Setup
 
@@ -79,14 +81,16 @@ Upload a video file for processing. The video will be processed in the backgroun
 ```http
 POST /search
 ```
-Search across video content using semantic search. The response includes both individual scene results and automatically generated trimmed video files based on AI-analyzed timelines.
+Search across video content using semantic search with strict relevance filtering. The response includes a single merged video containing only truly relevant segments stitched together from across all your videos.
 
 **Key Features**:
-- **Individual Scene Results**: Specific scenes that match your query with their timestamps
-- **AI Timeline Analysis**: OpenAI analyzes scenes to determine overall start/end timestamps for relevant content in each video
-- **Automatic Video Trimming**: Generates trimmed video files for each relevant timeline
-- **Downloadable Videos**: Direct URLs to download the trimmed video segments
-- **AI Reasoning**: Explanations for why specific timestamps were chosen
+- **Strict Relevance Filtering**: AI analyzes each scene to ensure true relevance to your query
+- **Single Merged Video**: All relevant content combined into one downloadable video file
+- **Intelligent Stitching**: AI-powered assembly of segments with optimal ordering
+- **Title Cards**: Automatic separation between content from different source videos
+- **Smart Merging**: Overlapping segments are merged, adjacent segments are combined
+- **Quality Over Quantity**: Fewer, highly relevant scenes instead of loosely related content
+- **Context Awareness**: Considers both textual and visual relevance
 
 **Request**:
 ```json
@@ -132,7 +136,19 @@ Search across video content using semantic search. The response includes both in
       "trimmed_video_path": "/path/to/trimmed_video.mp4",
       "trimmed_video_url": "/trimmed_videos/Video_Title_000042-000205_83.5s.mp4"
     }
-  ]
+  ],
+  "merged_video": {
+    "query": "architecture explanation",
+    "merged_filename": "merged_architecture_explanation_3segments_180.5s_abc123.mp4",
+    "merged_path": "/path/to/merged_video.mp4",
+    "merged_url": "/trimmed_videos/merged_architecture_explanation_3segments_180.5s_abc123.mp4",
+    "total_duration_seconds": 180.5,
+    "file_size_mb": 45.2,
+    "segments_count": 3,
+    "source_videos": ["Video Title 1", "Video Title 2"],
+    "creation_timestamp": "2024-01-15T10:30:00",
+    "reasoning": "This merged video contains 3 relevant segments from 2 video(s) related to your query 'architecture explanation'. From 'Video Title 1': Complete system overview. From 'Video Title 2': Detailed component explanation."
+  }
 }
 ```
 

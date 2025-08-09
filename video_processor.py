@@ -82,14 +82,17 @@ class VideoProcessor:
         print(f"Processed {len(scenes_with_embeddings)} scenes")
         return scenes_with_embeddings
     
-    def _detect_slide_transitions(self, video_path: str, output_dir: str, threshold: int = 5) -> List[Tuple[float, str]]:
-        """Detect slide transitions using perceptual hashing"""
+    def _detect_slide_transitions(self, video_path: str, output_dir: str, threshold: int = 6) -> List[Tuple[float, str]]:
+        """Detect slide transitions using improved perceptual hashing with temporal smoothing"""
         cap = cv2.VideoCapture(video_path)
-        last_hash = None
-        slide_changes = []
         frame_rate = cap.get(cv2.CAP_PROP_FPS)
+        
+        # Collect hashes for temporal smoothing
+        timestamps = []
+        hashes = []
         frame_num = 0
-        scene_id = 1
+
+
 
         while True:
             ret, frame = cap.read()
@@ -97,25 +100,95 @@ class VideoProcessor:
                 break
 
             # Process every second of video
-            if frame_num % int(frame_rate) != 0:
-                frame_num += 1
-                continue
-
-            pil_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            current_hash = imagehash.phash(pil_image)
-
-            if last_hash and abs(current_hash - last_hash) > threshold:
+            if frame_num % int(frame_rate) == 0:
                 timestamp = frame_num / frame_rate
-                filename = f"Scene-{scene_id:03d}.jpg"
-                slide_changes.append((timestamp, filename))
-                pil_image.save(os.path.join(output_dir, filename))
-                scene_id += 1
+                pil_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                current_hash = imagehash.phash(pil_image)
+                
+                timestamps.append(timestamp)
+                hashes.append(current_hash)
 
-            last_hash = current_hash
             frame_num += 1
 
         cap.release()
-        return slide_changes
+        
+        # Now detect transitions with improved logic
+        slide_changes = []
+        scene_id = 1
+        
+        if len(hashes) < 2:
+            return slide_changes
+        
+        # Use temporal smoothing to reduce false positives
+        for i in range(1, len(hashes)):
+            current_hash = hashes[i]
+            prev_hash = hashes[i-1]
+            timestamp = timestamps[i]
+            
+            hash_diff = abs(current_hash - prev_hash)
+            
+            # Check if this is a significant transition
+            if hash_diff > threshold:
+                # Temporal validation: check surrounding frames to confirm transition
+                is_real_transition = True
+                
+                # Look ahead and behind to confirm this is a stable transition
+                if i > 1 and i < len(hashes) - 1:
+                    # Check if the change is sustained (not just a blip)
+                    prev_prev_diff = abs(hashes[i-1] - hashes[i-2]) if i > 1 else 0
+                    next_diff = abs(hashes[i+1] - current_hash) if i < len(hashes) - 1 else 0
+                    
+                    # If previous frames were stable and next frame is also different, it's a real transition
+                    if prev_prev_diff <= threshold and next_diff <= threshold:
+                        is_real_transition = True
+                    elif prev_prev_diff > threshold:
+                        # Too many rapid changes - might be animation/noise
+                        is_real_transition = False
+                
+                if is_real_transition:
+                    filename = f"Scene-{scene_id:03d}.jpg"
+                    slide_changes.append((timestamp, filename))
+                    
+                    # Save the frame
+                    cap2 = cv2.VideoCapture(video_path)
+                    cap2.set(cv2.CAP_PROP_POS_FRAMES, timestamp * frame_rate)
+                    ret, frame = cap2.read()
+                    if ret:
+                        pil_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                        pil_image.save(os.path.join(output_dir, filename))
+                    cap2.release()
+                    
+                    scene_id += 1
+                    
+
+
+        # Post-process to merge very short scenes (likely false positives)
+        return self._consolidate_short_scenes(slide_changes)
+    
+    def _consolidate_short_scenes(self, slide_changes: List[Tuple[float, str]], min_scene_duration: float = 3.0) -> List[Tuple[float, str]]:
+        """Consolidate only extremely short scenes that are definitely false detections"""
+        if len(slide_changes) < 2:
+            return slide_changes
+        
+
+        
+        # Very conservative consolidation - only merge obvious false positives (< 3 seconds)
+        consolidated = [slide_changes[0]]  # Always keep the first transition
+        
+        merged_count = 0
+        for i in range(1, len(slide_changes)):
+            current_time = slide_changes[i][0]
+            last_kept_time = consolidated[-1][0]
+            scene_duration = current_time - last_kept_time
+            
+            # Only merge if scene is extremely short (< 3 seconds) - definitely a false positive
+            if scene_duration >= min_scene_duration:
+                consolidated.append(slide_changes[i])
+            else:
+                merged_count += 1
+        
+        # Don't do second pass - preserve all other scenes
+        return consolidated
     
     def _generate_scene_list_from_slides(self, slide_changes: List[Tuple[float, str]], video_duration: float) -> List[Tuple[float, float]]:
         """Generate scene time ranges from slide changes"""
@@ -180,16 +253,28 @@ class VideoProcessor:
             return base64.b64encode(image_file.read()).decode("utf-8")
     
     def _generate_visual_context_for_scene(self, scene: SceneData) -> str:
-        """Generate visual context for a single scene using GPT-4o"""
+        """Generate visual context for a single scene using GPT-4o, focusing on text and relationships"""
         if not scene.scene_image_path or not os.path.exists(scene.scene_image_path):
             return None
 
         try:
             base64_image = self._encode_image_to_base64(scene.scene_image_path)
+            
+            enhanced_prompt = """Analyze this image and focus ONLY on the meaningful content, ignoring decorative elements and backgrounds. Provide:
+
+1. TEXT CONTENT: Extract and list all visible text, headings, labels, and captions
+2. VISUAL RELATIONSHIPS: Describe how elements connect (arrows, lines, hierarchies, groupings)
+3. KEY CONCEPTS: Identify diagrams, charts, formulas, code snippets, or structured information
+4. IGNORE: Backgrounds, colors, decorative elements, general aesthetics
+
+Format: "Text: [all text content] | Structure: [relationships and diagrams] | Concepts: [main ideas shown]"
+
+Be concise and focus on searchable, meaningful information."""
+
             response = self.llm([
                 HumanMessage(
                     content=[
-                        {"type": "text", "text": "Describe the slide in this image briefly and clearly. Focus on key visual elements, text content, and overall context."},
+                        {"type": "text", "text": enhanced_prompt},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
                     ]
                 )

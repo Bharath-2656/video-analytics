@@ -233,42 +233,39 @@ Similarity Score: {scene['similarity_score']:.3f}
 
 """
         
-        prompt = f"""You are analyzing video scenes to determine which ones are relevant to a search query. Consider both individual scene content AND the context flow between adjacent scenes for complete explanations.
+        prompt = f"""You are analyzing video scenes to determine which ones are DIRECTLY and SPECIFICALLY relevant to a search query. Be STRICT and selective - only include scenes that contain substantial, focused content about the query topic.
 
 Search Query: "{query}"
 
-Here are the candidate scenes with their adjacent scene context:
+Here are the candidate scenes:
 {scenes_text}
 
-For each scene, determine if it should be included to properly answer the query "{query}". Consider these factors:
+For each scene, determine if it contains content that DIRECTLY answers or explains the query "{query}". Apply STRICT criteria:
 
-INCLUSION CRITERIA:
-1. DIRECT CONTENT: Scene contains detailed explanations, demonstrations, or information about the query topic
-2. CONTEXTUAL FLOW: Scene is part of a logical sequence that explains the topic (e.g., title → detailed explanation → examples)
-3. VISUAL EVIDENCE: Scene shows relevant diagrams, technical content, or demonstrations related to the topic
-4. EXPLANATORY VALUE: Scene contributes to understanding the topic, even if brief (like introducing a detailed section)
+INCLUSION CRITERIA (must meet at least 2):
+1. DIRECT TOPIC FOCUS: Scene primarily discusses or explains the query topic (not just mentions it)
+2. SUBSTANTIAL CONTENT: Contains detailed explanations, demonstrations, or technical information about the topic
+3. VISUAL EVIDENCE: Shows relevant diagrams, technical content, or demonstrations
+4. QUERY-SPECIFIC DETAILS: Contains specific information that directly answers the user's question
 
-SEQUENCE AWARENESS:
-- For "Where did I explain [topic]" queries: Include introduction/title scenes AND the detailed explanations that follow
-- Include scenes that introduce a topic if they're followed by detailed explanations in adjacent scenes
-- Include visual/diagram scenes that support explanations
-- Consider the flow: Title → Explanation → Details → Examples as a complete sequence
+EXCLUSION CRITERIA (exclude if any apply):
+- Scene only briefly mentions the topic without explanation
+- Generic or introductory content without specific details
+- Tangential or background information not directly related
+- Setup, context, or transition content that doesn't answer the query
+- Title slides or announcements without substantive content
 
-EXCLUSION CRITERIA:
-- Scenes about completely different topics with no connection to the query
-- Scenes that only tangentially mention the topic without any explanation or context
-- Isolated mentions without supporting content in adjacent scenes
+STRICT FILTERING RULES:
+- For "Where did I explain about [topic]" queries: Only include scenes with actual explanations, not just topic mentions
+- Exclude broad context or setup scenes that don't directly address the query
+- Exclude scenes that are more about other topics even if they briefly touch on the query topic
+- Quality over quantity - better to return fewer highly relevant scenes than many loosely related ones
+- Each included scene should be able to standalone as valuable content for the query
 
-SMART FILTERING:
-- Quality explanations often span multiple connected scenes (introduction + details + examples)
-- Don't exclude introductory scenes if they lead to detailed explanations
-- Include supporting visual content and examples that enhance understanding
-- Focus on complete explanations rather than isolated fragments
+Return a JSON array with the scene numbers (1-based) that are TRULY relevant:
+{{"relevant_scenes": [1, 3, 5], "reasoning": "Brief explanation of why these scenes were selected"}}
 
-Return a JSON array with the scene numbers (1-based) that together provide a complete answer:
-{{"relevant_scenes": [1, 2, 3], "reasoning": "Brief explanation of why these scenes form a complete explanation"}}
-
-Prioritize complete, coherent explanations over strict individual scene relevance."""
+Be strict and selective - focus on quality and direct relevance over quantity."""
 
         try:
             response = self.client.chat.completions.create(
@@ -276,7 +273,7 @@ Prioritize complete, coherent explanations over strict individual scene relevanc
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are an expert content analyzer specializing in understanding explanation sequences in educational content. Identify complete explanations that may span multiple connected scenes, focusing on the full context flow rather than isolated scene relevance."
+                        "content": "You are an expert content analyzer. Evaluate video scenes for true relevance to search queries, considering both individual content and contextual flow between scenes."
                     },
                     {
                         "role": "user",

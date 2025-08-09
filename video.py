@@ -104,7 +104,7 @@ for idx, (start, end) in enumerate(scene_list):
 # Initialize GPT-4o LLM
 llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
-# Function to call GPT-4o on an image
+# Function to call GPT-4o on an image with enhanced focus on text and relationships
 def generate_visual_context(scene):
     image_path = scene["scene_image"]
     if not os.path.exists(image_path):
@@ -112,10 +112,21 @@ def generate_visual_context(scene):
 
     base64_image = encode_image_to_base64(image_path)
     try:
+        enhanced_prompt = """Analyze this image and focus ONLY on the meaningful content, ignoring decorative elements and backgrounds. Provide:
+
+1. TEXT CONTENT: Extract and list all visible text, headings, labels, and captions
+2. VISUAL RELATIONSHIPS: Describe how elements connect (arrows, lines, hierarchies, groupings)
+3. KEY CONCEPTS: Identify diagrams, charts, formulas, code snippets, or structured information
+4. IGNORE: Backgrounds, colors, decorative elements, general aesthetics
+
+Format: "Text: [all text content] | Structure: [relationships and diagrams] | Concepts: [main ideas shown]"
+
+Be concise and focus on searchable, meaningful information."""
+
         response = llm([
             HumanMessage(
                 content=[
-                    {"type": "text", "text": "Describe the slide in this image briefly and clearly."},
+                    {"type": "text", "text": enhanced_prompt},
                     {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
                 ]
             )
